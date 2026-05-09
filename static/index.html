@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FindLocalServer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div id="app">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-gray-900/95 backdrop-blur border-b border-gray-800">
+      <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+        <h1 class="text-xl font-bold text-white whitespace-nowrap">
+          <span class="text-amber-400">Find</span>LocalServer
+        </h1>
+        <!-- IP selector -->
+        <div class="relative">
+          <select
+            v-model="selectedIP"
+            class="appearance-none bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 pr-8 text-sm text-amber-400 font-mono focus:outline-none focus:border-amber-500 cursor-pointer"
+          >
+            <option v-for="ip in ipList" :key="ip" :value="ip">{{ ip }}</option>
+          </select>
+          <svg class="absolute right-2 top-2.5 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </div>
+        <!-- Search -->
+        <div class="flex-1 relative">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索服务名称或端口..."
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 pl-10 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+          >
+          <svg class="absolute left-3 top-2.5 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+        <!-- Refresh -->
+        <button
+          @click="refreshAll"
+          :disabled="refreshing"
+          class="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-800 rounded-lg text-sm font-medium text-gray-900 transition-colors"
+        >
+          <svg :class="{'animate-spin': refreshing}" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          {{ refreshing ? '扫描中...' : '刷新' }}
+        </button>
+        <!-- GitHub -->
+        <a href="https://github.com/code2rich/findlocalserver/blob/main/README.md" target="_blank" rel="noopener noreferrer"
+          class="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+          title="GitHub">
+          <svg class="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <!-- Filter tabs -->
+    <div class="max-w-6xl mx-auto px-4 mt-4">
+      <div class="flex gap-2 overflow-x-auto pb-2">
+        <button
+          v-for="tab in typeTabs"
+          :key="tab.value"
+          @click="activeType = tab.value"
+          :class="[
+            'px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors',
+            activeType === tab.value
+              ? 'bg-amber-500 text-gray-900'
+              : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          ]"
+        >
+          {{ tab.icon }} {{ tab.label }}
+          <span v-if="tab.count > 0" class="ml-1 text-xs opacity-70">({{ tab.count }})</span>
+        </button>
+      </div>
+      <div class="flex gap-2 overflow-x-auto pb-2 mt-2">
+        <button
+          v-for="tab in pageTypeTabs"
+          :key="tab.value"
+          @click="activePageType = tab.value"
+          :class="[
+            'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
+            activePageType === tab.value
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-800/60 text-gray-400 hover:bg-gray-700'
+          ]"
+        >
+          {{ tab.icon || '' }} {{ tab.label }}
+          <span v-if="tab.count > 0" class="ml-1 text-xs opacity-70">({{ tab.count }})</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Service count & info -->
+    <div class="max-w-6xl mx-auto px-4 mt-3 flex items-center justify-between text-xs text-gray-500">
+      <span>共发现 {{ filteredServices.length }} 个服务 · 访问地址: {{ selectedIP }}</span>
+      <span>自动刷新: {{ autoRefreshEnabled ? refreshInterval + 's' : '关闭' }}</span>
+    </div>
+
+    <!-- Service list -->
+    <div class="max-w-6xl mx-auto px-4 mt-4 pb-8">
+      <!-- Empty state -->
+      <div v-if="filteredServices.length === 0 && !refreshing" class="text-center py-20 text-gray-500">
+        <div class="text-6xl mb-4">🔍</div>
+        <p class="text-lg">{{ searchQuery ? '没有找到匹配的服务' : '未发现本地服务' }}</p>
+        <p class="mt-2 text-sm">点击右上角「刷新」重新扫描</p>
+      </div>
+
+      <!-- Grouped view -->
+      <div v-for="group in visibleGroups" :key="group.name" class="mb-6">
+        <h3 v-if="group.name" class="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          {{ group.name }}
+        </h3>
+        <div class="grid gap-3" :class="group.services.length > 1 ? 'md:grid-cols-2' : ''">
+          <service-card
+            v-for="svc in group.services"
+            :key="svc.id"
+            :service="svc"
+            :display-host="selectedIP"
+            @toggle-fav="toggleFavorite(svc.id)"
+            @check-health="checkHealth(svc.id)"
+            @set-group="setGroup(svc.id, $event)"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Service Card Component -->
+  <script type="text/x-template" id="service-card-template">
+    <div :class="[
+      'rounded-xl border p-4 transition-all hover:border-gray-600',
+      service.favorite ? 'border-amber-500/50 bg-amber-500/5' : 'border-gray-800 bg-gray-900'
+    ]">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="text-2xl flex-shrink-0">{{ service.icon }}</span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 class="font-semibold text-white truncate">{{ service.name }}</h3>
+              <span :class="[
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs',
+                typeBadgeClass
+              ]">
+                {{ typeLabel }}
+              </span>
+              <span v-if="pageTypeLabel" :class="[
+                'inline-flex items-center px-2 py-0.5 rounded-full text-xs',
+                pageTypeLabel.cls
+              ]">
+                {{ pageTypeLabel.text }}
+              </span>
+            </div>
+            <p class="text-sm text-gray-400 mt-0.5 font-mono">
+              {{ displayHost }}:{{ service.port }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button @click="$emit('check-health')" class="flex items-center gap-1" title="健康检测">
+            <span :class="['w-2.5 h-2.5 rounded-full', healthColor]"></span>
+          </button>
+          <button @click="$emit('toggle-fav')" class="text-lg" :title="service.favorite ? '取消收藏' : '收藏'">
+            {{ service.favorite ? '⭐' : '☆' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Extra info -->
+      <div v-if="service.extra && (service.extra.http_title || service.extra.http_server || service.extra.image)" class="mt-2 text-xs text-gray-500 space-y-0.5">
+        <div v-if="service.extra.http_title">📄 {{ service.extra.http_title }}</div>
+        <div v-if="service.extra.http_server">🖥️ {{ service.extra.http_server }}</div>
+        <div v-if="service.extra.image">🐳 {{ service.extra.image }}</div>
+        <div v-if="service.extra.banner" class="font-mono truncate">📡 {{ service.extra.banner }}</div>
+      </div>
+
+      <!-- Actions -->
+      <div class="mt-3 flex items-center gap-2 flex-wrap">
+        <a
+          v-if="computedUrl && service.extra && service.extra.page_type === 'webpage'"
+          :href="computedUrl"
+          target="_blank"
+          class="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 rounded-md text-xs font-medium text-gray-900 transition-colors"
+        >
+          打开 →
+        </a>
+        <button
+          @click="copyConnectionString"
+          class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-md text-xs font-medium text-gray-300 transition-colors"
+        >
+          复制连接
+        </button>
+        <button
+          @click="showGroupInput = !showGroupInput"
+          class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-md text-xs font-medium text-gray-300 transition-colors"
+        >
+          {{ service.group || '分组' }}
+        </button>
+      </div>
+
+      <!-- Group input -->
+      <div v-if="showGroupInput" class="mt-2 flex gap-2">
+        <input
+          :value="service.group"
+          @change="$emit('set-group', $event.target.value)"
+          placeholder="输入分组名..."
+          class="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-amber-500"
+        >
+      </div>
+    </div>
+  </script>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
