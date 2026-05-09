@@ -2,6 +2,8 @@
 
 本地服务发现工具 —— 自动扫描本机所有监听端口和 Docker 容器，识别服务类型，提供 Web UI 进行管理。
 
+![Web UI 界面预览](static/img/index.png)
+
 ## 功能特性
 
 - **端口扫描** — 自动发现本机所有监听端口，支持 macOS / Linux / Windows
